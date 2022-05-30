@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 )
-
-var baseURL string = "https://ca.indeed.com/jobs?q=golang"
-var lastPageURL string = "https://ca.indeed.com/jobs?q=golang&start=9999"
 
 type extractedJob struct {
 	id       string
@@ -22,13 +20,17 @@ type extractedJob struct {
 	salary   string
 }
 
-func main() {
+func Scrape(term string) {
+
+	var baseURL string = "https://ca.indeed.com/jobs?q=" + term
+	var lastPageURL string = "https://ca.indeed.com/jobs?q=" + term + "&start=9999"
+
 	mainC := make(chan []extractedJob)
 	var combinedJobs []extractedJob
-	totalPages := getPages()
+	totalPages := getPages(lastPageURL)
 
 	for i := 0; i < totalPages; i++ {
-		go getPage(i, mainC)
+		go getPage(baseURL, i, mainC)
 	}
 
 	for i := 0; i < totalPages; i++ {
@@ -59,11 +61,11 @@ func writeJobs(jobs []extractedJob) {
 	}
 }
 
-func getPage(page int, mainC chan<- []extractedJob) {
+func getPage(url string, page int, mainC chan<- []extractedJob) {
 	c := make(chan extractedJob)
 
 	var jobs []extractedJob
-	pageURL := baseURL + "&start=" + strconv.Itoa(page*10)
+	pageURL := url + "&start=" + strconv.Itoa(page*10)
 
 	resp, err := http.Get(pageURL)
 	checkErr(err)
@@ -105,9 +107,10 @@ func extractJob(s *goquery.Selection, c chan<- extractedJob) {
 	}
 }
 
-func getPages() int {
+// Scrape Indeed by term
+func getPages(url string) int {
 	pages := 0
-	resp, err := http.Get(lastPageURL)
+	resp, err := http.Get(url)
 	checkErr(err)
 	checkCode(resp)
 
@@ -135,4 +138,8 @@ func checkCode(r *http.Response) {
 	if r.StatusCode != 200 {
 		log.Fatalln("Request failed with Status:", r.StatusCode)
 	}
+}
+
+func CleanString(str string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(str)), " ")
 }
